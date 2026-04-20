@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="logo.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Control System PRO</title>
+    <style>
+        :root {
+            --glass: rgba(30, 50, 30, 0.4); 
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --accent: #a2ff00;
+            --dark-blue: #16243d;
+            --input-bg: #243b55;
+            --gray-icon: #555;
+            --error-red: #ff4d4d;
+        }
+
+        input::-ms-reveal, input::-ms-clear { display: none !important; }
+
+        body, html {
+            margin: 0; padding: 0;
+            height: 100vh; width: 100vw;
+            overflow: hidden; 
+            font-family: 'Segoe UI', sans-serif;
+            background: url('background.png') no-repeat center center fixed;
+            background-size: cover;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #050a05;
+        }
+
+        #status-indicator {
+            display: flex; align-items: center; gap: 8px;
+            position: absolute; top: 15px; left: 15px;
+            font-size: 0.75rem; font-weight: bold; color: #ff4d4d;
+            z-index: 100;
+        }
+        .dot { width: 10px; height: 10px; background: #ff4d4d; border-radius: 50%; transition: 0.3s; }
+        .online { color: #a2ff00 !important; }
+        .online .dot { background: #a2ff00; box-shadow: 0 0 10px #a2ff00; }
+
+        .system-offline-lock {
+            filter: grayscale(1) !important;
+            opacity: 0.5 !important;
+            pointer-events: none !important;
+            cursor: not-allowed;
+        }
+
+        #login-screen {
+            width: 90%; max-width: 360px;
+            padding: 60px 35px 40px 35px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border-radius: 25px; border: 1px solid var(--glass-border);
+            text-align: center; position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+
+        .profile-logo {
+            width: 95px; height:95px; 
+            background: transparent;
+            border-radius: 50%;
+            position: absolute; top: -47px; left: 50%; transform: translateX(-50%);
+            display: flex; justify-content: center; align-items: center;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+        .profile-logo img { width: 90%; height: 90%; object-fit: contain; }
+
+        .input-group { background: var(--input-bg); border-radius: 6px; display: flex; align-items: center; margin-bottom: 20px; position: relative; }
+        .login-field { background: transparent; border: none; padding: 14px; color: white; width: 100%; outline: none; }
+        .input-icon { padding: 12px; display: flex; align-items: center; }
+        .input-icon svg { width: 18px; fill: rgba(255,255,255,0.7); }
+        .toggle-pass { position: absolute; right: 10px; cursor: pointer; display: none; align-items: center; height: 100%; }
+        .toggle-pass svg { width: 20px; fill: rgba(255,255,255,0.5); }
+
+        #login-error { color: var(--error-red); font-size: 0.85rem; margin-bottom: 10px; height: 18px; visibility: hidden; font-weight: 500; }
+
+        #login-btn {
+            background: #ffffff; color: var(--dark-blue); border: none; width: 85%; padding: 15px;
+            border-radius: 12px; cursor: pointer; font-weight: bold; position: absolute; 
+            bottom: -25px; left: 50%; transform: translateX(-50%); 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4); text-transform: uppercase;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .spinner {
+            width: 18px; height: 18px;
+            border: 3px solid rgba(22, 36, 61, 0.2);
+            border-top: 3px solid var(--dark-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none; margin-right: 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #main-interface {
+            display: none; width: 95vw; height: 95vh;
+            max-width: 1000px; max-height: 620px;
+            border-radius: 15px; overflow: hidden;
+            flex-direction: column; border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+
+        #logout-btn {
+            position: absolute; top: 15px; right: 15px; cursor: pointer; z-index: 100;
+            padding: 8px; border-radius: 50%; background: rgba(0,0,0,0.3); transition: 0.3s;
+        }
+        #logout-btn:hover { background: rgba(255,0,0,0.4); transform: scale(1.1); }
+
+        .content { 
+            flex: 1; padding: 15px; display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: auto auto 1fr auto; 
+            gap: 12px; 
+            background: rgba(8, 20, 8, 0.96);
+            overflow: hidden; 
+        }
+
+        .glass-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; color: white; justify-content: center; }
+
+        #current-date { font-size: 1.1rem; color: var(--accent); text-transform: uppercase; margin-bottom: 2px; }
+        #current-time { font-size: 2.2rem; font-weight: bold; line-height: 1; }
+
+        .stat-val { font-size: 1.6rem; font-weight: bold; }
+        .icon-dashboard { width: 30px; height: 30px; fill: var(--accent); margin-bottom: 5px; }
+
+        .faucet-wrap {
+            display: flex; flex-direction: column; align-items: center;
+            position: relative; gap: 2px;
+        }
+        .faucet-icon { width: 44px; height: 44px; fill: var(--gray-icon); transition: fill 0.3s; }
+        .active-water .faucet-icon { fill: var(--accent); filter: drop-shadow(0 0 6px #00e676aa); }
+
+        .water-stream {
+            display: flex; gap: 5px; height: 28px;
+            align-items: flex-start; justify-content: center;
+            overflow: hidden;
+        }
+        .wdrop {
+            width: 5px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            background: #4fc3f7; opacity: 0;
+        }
+        .wdrop-sm { height: 7px; }
+        .wdrop-md { height: 10px; }
+        .wdrop-lg { height: 13px; }
+
+        .active-water .wdrop-1 { animation: fall 0.7s ease-in infinite 0.00s; }
+        .active-water .wdrop-2 { animation: fall 0.7s ease-in infinite 0.18s; }
+        .active-water .wdrop-3 { animation: fall 0.7s ease-in infinite 0.36s; }
+        .active-water .wdrop-4 { animation: fall 0.7s ease-in infinite 0.10s; }
+        .active-water .wdrop-5 { animation: fall 0.7s ease-in infinite 0.28s; }
+        .active-water .wdrop-6 { animation: fall 0.7s ease-in infinite 0.46s; }
+
+        @keyframes fall {
+            0%   { transform: translateY(-4px); opacity: 0; }
+            20%  { opacity: 0.9; }
+            80%  { opacity: 0.7; }
+            100% { transform: translateY(26px); opacity: 0; }
+        }
+        .faucet-label { font-size: 0.65rem; color: var(--gray-icon); letter-spacing: 1px; font-weight: 600; }
+        .active-water .faucet-label { color: var(--accent); }
+
+        .mode-row { grid-column: span 2; display: flex; justify-content: center; gap: 15px; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 50px; width: fit-content; margin: 0 auto; }
+        .mode-row label { font-size: 0.8rem; font-weight: bold; cursor: pointer; padding: 8px 20px; border-radius: 30px; color: #aaa; }
+        .mode-row input { display: none; }
+        .mode-row label:has(input:checked) { background: var(--accent); color: var(--dark-blue); }
+
+        .section-header { text-align: center; padding: 6px; border-radius: 6px; margin-bottom: 10px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; }
+        .sh-int { background: rgba(162, 255, 0, 0.2); color: var(--accent); }
+        .sh-man { background: #333; color: #eee; }
+
+        .input-pro { background: #ffffff; color: #000; border: 2px solid var(--accent); padding: 8px; border-radius: 6px; width: 100px; font-weight: bold; outline: none; }
+
+        .vanne-chip { padding: 6px 14px; border-radius: 20px; border: 1px solid #555; font-size: 0.75rem; cursor: pointer; }
+        .vanne-chip:has(input:checked) { background: var(--accent); color: var(--dark-blue); font-weight: bold; }
+        .vanne-chip input { display: none; }
+
+        .switch { position: relative; width: 42px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #222; border-radius: 20px; transition: .4s; border: 1px solid #444; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: .4s; }
+        input:checked + .slider { background: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .disabled { opacity: 0.25; pointer-events: none; filter: grayscale(1); }
+
+        @media (max-width: 768px) {
+            body, html { overflow: auto; }
+            #main-interface { width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; border-radius: 0; }
+            .content { grid-template-columns: 1fr 1fr; overflow: auto; padding: 10px; gap: 10px; }
+            .glass-card[style*="span 2"] { flex-direction: column !important; align-items: center !important; min-height: unset !important; gap: 10px; padding: 12px; }
+            #current-date  { font-size: 0.9rem; }
+            #current-time  { font-size: 1.7rem; }
+            .stat-val      { font-size: 1.3rem; }
+            .icon-dashboard { width: 24px; height: 24px; }
+            .faucet-icon   { width: 36px; height: 36px; }
+        }
+
+        @media (max-width: 480px) {
+            body, html { overflow: auto; }
+            #login-screen { width: 88%; padding: 55px 20px 40px; margin-top: 60px; }
+            #main-interface { width: 100vw; height: auto; min-height: 100vh; max-width: 100%; max-height: none; border-radius: 0; }
+            #status-indicator { font-size: 0.65rem; top: 10px; left: 10px; }
+            #logout-btn { top: 8px; right: 8px; padding: 6px; }
+            #logout-btn svg { width: 18px !important; }
+            .content { grid-template-columns: 1fr !important; overflow: visible; padding: 8px; gap: 10px; }
+            .glass-card[style*="span 2"] { grid-column: 1 / -1 !important; flex-direction: column !important; align-items: center !important; min-height: unset !important; gap: 10px; padding: 12px; }
+            .mode-row { grid-column: 1 / -1 !important; width: 100% !important; justify-content: center; }
+            .mode-row label { font-size: 0.78rem; padding: 8px 18px; }
+            #p-int { grid-column: 1 / -1 !important; width: 100%; }
+            #p-man { grid-column: 1 / -1 !important; width: 100%; }
+            #status-msg { grid-column: 1 / -1 !important; }
+            #current-date  { font-size: 0.75rem; }
+            #current-time  { font-size: 1.4rem; }
+            .stat-val      { font-size: 1.1rem; }
+            .icon-dashboard { width: 20px; height: 20px; margin-bottom: 2px; }
+            .faucet-icon   { width: 32px; height: 32px; }
+            .faucet-label  { font-size: 0.6rem; }
+            .plan-row { flex-direction: column !important; align-items: flex-start !important; gap: 5px !important; }
+            .input-pro { width: 100% !important; padding: 9px; font-size: 0.9rem; }
+            .vanne-chip { padding: 7px 14px; font-size: 0.75rem; }
+            .switch { width: 50px; height: 28px; }
+            .slider:before { height: 20px; width: 20px; }
+            input:checked + .slider:before { transform: translateX(22px); }
+            .section-header { font-size: 0.8rem; }
+            #status-msg { font-size: 0.8rem; padding: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="profile-logo">
+            <img src="logo.png" alt="Logo">
+        </div>
+        <h2 style="color: white; margin-bottom: 25px; font-weight: 300; letter-spacing: 2px;">NATURE CONNECT</h2>
+        
+        <div class="input-group">
+            <div class="input-icon"><svg viewBox="0 0 24 24"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg></div>
+            <input type="text" id="user" class="login-field" placeholder="Email Address">
+        </div>
+        
+        <div class="input-group">
+            <div class="input-icon"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.11,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg></div>
+            <input type="password" id="pass" class="login-field" placeholder="Password">
+            <div id="toggle-eye" class="toggle-pass"><svg viewBox="0 0 24 24"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg></div>
+        </div>
+
+        <div id="login-error">Invalid email or password</div>
+        
+        <button id="login-btn">
+            <div class="spinner" id="btn-spinner"></div>
+            <span id="btn-text">ACCESS SYSTEM</span>
+        </button>
+    </div>
+
+    <div id="main-interface">
+        <div id="status-indicator">
+            <div class="dot"></div> <span id="status-text">ESP32 INACTIVE</span>
+        </div>
+
+        <div id="logout-btn" title="Logout">
+            <svg style="width:24px; fill:white;" viewBox="0 0 24 24"><path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/></svg>
+        </div>
+
+        <div class="content">
+            <div class="glass-card" style="grid-column: span 2; flex-direction: row; justify-content: space-around; align-items: center; min-height: 120px;">
+                <div>
+                    <div id="current-date">-- --, ----</div>
+                    <div id="current-time">00:00:00</div>
+                </div>
+                <div style="display: flex; gap: 30px;">
+                    <div style="text-align: center;">
+                        <svg class="icon-dashboard" viewBox="0 0 24 24"><path d="M15 13V5c0-1.7-1.3-3-3-3S9 3.3 9 5v8c-1.2.7-2 2-2 3.5 0 2.5 2 4.5 4.5 4.5s4.5-2 4.5-4.5c0-1.5-.8-2.8-2-3.5z"/></svg>
+                        <div id="temp-val" class="stat-val">--°C</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <svg class="icon-dashboard" viewBox="0 0 512 512">
+                            <g fill="none" stroke="var(--accent)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M40,245 h140 c20,0 35,-15 35,-35 s-15,-35 -35,-35" />
+                                <path d="M40,320 h260" />
+                                <path d="M40,395 h100 m70,0 h160 c20,0 35,15 35,35 s-15,35 -35,35" />
+                                <path d="M370,320 h70 c20,0 35,-15 35,-35 s-15,-35 -35,-35" />
+                                <path fill="var(--accent)" stroke="none" d="M330,70 c0,0 -25,40 -25,60 a25,25 0 0 0 50,0 c0,-20 -25,-60 -25,-60 Z" />
+                                <path fill="var(--accent)" stroke="none" d="M260,170 c0,0 -25,40 -25,60 a25,25 0 0 0 50,0 c0,-20 -25,-60 -25,-60 Z" />
+                                <path fill="var(--accent)" stroke="none" d="M400,170 c0,0 -25,40 -25,60 a25,25 0 0 0 50,0 c0,-20 -25,-60 -25,-60 Z" />
+                            </g>
+                        </svg>
+                        <div id="hum-val" class="stat-val">--%</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <svg class="icon-dashboard" viewBox="0 0 32 32" style="fill: var(--accent);">
+                            <path d="M24.5,30a5.202,5.202,0,0,1-4.626-8.08L23.49,16.5382a1.217,1.217,0,0,1,2.02,0L29.06,21.8154A5.4921,5.4921,0,0,1,30,24.751,5.385,5.385,0,0,1,24.5,30Zm0-11.38-2.9356,4.3672A3.2079,3.2079,0,0,0,24.5,28,3.3855,3.3855,0,0,0,28,24.751a3.4354,3.4354,0,0,0-.63-1.867Z" />
+                            <path d="M11,16V11h1a4.0045,4.0045,0,0,0,4-4V4H13a3.9779,3.9779,0,0,0-2.7468,1.1067A6.0034,6.0034,0,0,0,5,2H2V5a6.0066,6.0066,0,0,0,6,6H9v5H2v2H16V16ZM13,6h1V7a2.002,2.002,0,0,1-2,2H11V8A2.002,2.002,0,0,1,13,6ZM8,9A4.0045,4.0045,0,0,1,4,5V4H5A4.0045,4.0045,0,0,1,9,8V9Z" />
+                            <rect x="2" y="21" width="14" height="2"/>
+                            <rect x="2" y="26" width="14" height="2"/>
+                        </svg>
+                        <div id="soil-val" class="stat-val">--%</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 20px;">
+                    <div id="v1-status" class="faucet-wrap">
+                        <svg class="faucet-icon" viewBox="0 0 64 64">
+                          <rect x="20" y="30" width="24" height="14" rx="3"/>
+                          <rect x="26" y="44" width="8" height="10" rx="2"/>
+                          <rect x="28" y="10" width="8" height="20" rx="2"/>
+                          <rect x="12" y="14" width="40" height="6" rx="3"/>
+                          <rect x="14" y="8"  width="6"  height="12" rx="2"/>
+                          <rect x="44" y="8"  width="6"  height="12" rx="2"/>
+                        </svg>
+                        <div class="water-stream">
+                          <div class="wdrop wdrop-sm wdrop-1"></div>
+                          <div class="wdrop wdrop-lg wdrop-2"></div>
+                          <div class="wdrop wdrop-md wdrop-3"></div>
+                          <div class="wdrop wdrop-sm wdrop-4"></div>
+                          <div class="wdrop wdrop-lg wdrop-5"></div>
+                          <div class="wdrop wdrop-md wdrop-6"></div>
+                        </div>
+                        <span class="faucet-label">V1</span>
+                    </div>
+                    <div id="v2-status" class="faucet-wrap">
+                        <svg class="faucet-icon" viewBox="0 0 64 64">
+                          <rect x="20" y="30" width="24" height="14" rx="3"/>
+                          <rect x="26" y="44" width="8" height="10" rx="2"/>
+                          <rect x="28" y="10" width="8" height="20" rx="2"/>
+                          <rect x="12" y="14" width="40" height="6" rx="3"/>
+                          <rect x="14" y="8"  width="6"  height="12" rx="2"/>
+                          <rect x="44" y="8"  width="6"  height="12" rx="2"/>
+                        </svg>
+                        <div class="water-stream">
+                          <div class="wdrop wdrop-md wdrop-1"></div>
+                          <div class="wdrop wdrop-sm wdrop-2"></div>
+                          <div class="wdrop wdrop-lg wdrop-3"></div>
+                          <div class="wdrop wdrop-md wdrop-4"></div>
+                          <div class="wdrop wdrop-sm wdrop-5"></div>
+                          <div class="wdrop wdrop-lg wdrop-6"></div>
+                        </div>
+                        <span class="faucet-label">V2</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mode-row">
+                <label><input type="radio" name="m" value="i" checked> INTELLIGENT</label>
+                <label><input type="radio" name="m" value="m"> MANUAL</label>
+            </div>
+
+            <div id="p-int" class="glass-card">
+                <div class="section-header sh-int">Automated Planning</div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="plan-row" style="display: flex; justify-content: space-between; align-items: center;"><span>Start Time:</span> <input type="time" id="sched-time" class="input-pro" value="18:00"></div>
+                    <div class="plan-row" style="display: flex; justify-content: space-between; align-items: center;"><span>Duration (min):</span> <input type="number" id="sched-duration" class="input-pro" value="10"></div>
+                    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 5px;">
+                        <label class="vanne-chip"><input type="checkbox" id="sched-v1" checked> VALVE 1</label>
+                        <label class="vanne-chip"><input type="checkbox" id="sched-v2"> VALVE 2</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="p-man" class="glass-card disabled">
+                <div class="section-header sh-man">Manual Override</div>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><span>VALVE 1</span><label class="switch"><input type="checkbox" id="sw1"><span class="slider"></span></label></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><span>VALVE 2</span><label class="switch"><input type="checkbox" id="sw2"><span class="slider"></span></label></div>
+                </div>
+            </div>
+
+            <div id="status-msg" style="grid-column: span 2; text-align: center; font-size: 0.85rem; padding: 12px; color: #fff;">System Ready...</div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================
+        //  HydroSmart — HTTP PURE
+        //  FIXES :
+        //  [1] setOnline : seuil 25s + normalisation lastSeen (ms vs s)
+        //  [2] doPoll   : timeout AbortController 5s + compteur échecs
+        //  [3] checkSoil: soilAlertShown + zone tampon 60%
+        //  [4] Intervalle poll 2500ms (moins de pression SSL)
+        // ================================================
+
+        let forcedWatering   = false;
+        let sessionActive    = false;
+        let pollInterval     = null;
+        let pollBlocked      = false;
+        let soilAlertShown   = false;   // [3] évite confirm() en boucle
+        let consecutiveFails = 0;       // [2] compteur d'échecs réseau
+        let lastOnlineState  = null;    // [1] évite redessiner inutilement
+
+        const loginBtn  = document.getElementById('login-btn');
+        const spinner   = document.getElementById('btn-spinner');
+        const btnText   = document.getElementById('btn-text');
+        const errorDiv  = document.getElementById('login-error');
+        const passInput = document.getElementById('pass');
+        const eyeBtn    = document.getElementById('toggle-eye');
+
+        // ── Password toggle ──
+        passInput.addEventListener('input', () => {
+            eyeBtn.style.display = passInput.value.length > 0 ? 'flex' : 'none';
+        });
+        eyeBtn.addEventListener('click', () => {
+            const isPass = passInput.type === 'password';
+            passInput.type       = isPass ? 'text' : 'password';
+            eyeBtn.style.opacity = isPass ? '1' : '0.4';
+        });
+
+        // ── Login ──
+        loginBtn.addEventListener('click', async () => {
+            const email = document.getElementById('user').value.trim();
+            const pass  = passInput.value;
+            if (!email || !pass) return;
+            errorDiv.style.visibility    = 'hidden';
+            spinner.style.display        = 'block';
+            btnText.innerText            = 'VERIFYING...';
+            loginBtn.style.pointerEvents = 'none';
+            try {
+                const r    = await fetch('/api/login', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password: pass })
+                });
+                const data = await r.json();
+                if (!data.success) throw new Error();
+                sessionActive = true;
+                localStorage.setItem('hs_session', 'active');
+                showMain();
+            } catch {
+                spinner.style.display        = 'none';
+                btnText.innerText            = 'ACCESS SYSTEM';
+                loginBtn.style.pointerEvents = 'auto';
+                errorDiv.style.visibility    = 'visible';
+            }
+        });
+
+        // ── Logout ──
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            sessionActive    = false;
+            consecutiveFails = 0;
+            lastOnlineState  = null;
+            localStorage.removeItem('hs_session');
+            localStorage.removeItem('hs_mode');
+            if (pollInterval) clearInterval(pollInterval);
+            document.getElementById('main-interface').style.display = 'none';
+            document.getElementById('login-screen').style.display   = 'block';
+        });
+
+        // ── Restauration session ──
+        window.addEventListener('load', () => {
+            if (localStorage.getItem('hs_session') === 'active') {
+                sessionActive = true;
+                showMain();
+            }
+        });
+
+        function showMain() {
+            document.getElementById('login-screen').style.display   = 'none';
+            document.getElementById('main-interface').style.display = 'flex';
+            const savedMode = localStorage.getItem('hs_mode') || 'i';
+            const radio = document.querySelector('input[name="m"][value="' + savedMode + '"]');
+            if (radio) {
+                radio.checked = true;
+                document.getElementById('p-int').classList.toggle('disabled', savedMode !== 'i');
+                document.getElementById('p-man').classList.toggle('disabled', savedMode === 'i');
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+            doPoll();
+            // [4] 2500ms — moins agressif, évite chevauchement requêtes SSL
+            pollInterval = setInterval(doPoll, 2500);
+        }
+
+        // ── POLL /api/poll ──
+        async function doPoll() {
+            try {
+                // [2] Timeout explicite 5s via AbortController
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 5000);
+
+                const r    = await fetch('/api/poll', { signal: controller.signal });
+                clearTimeout(tid);
+
+                const data = await r.json();
+                consecutiveFails = 0; // [2] reset sur succès
+
+                if (!data.success) return;
+
+                if (data.sensors) {
+                    setSensors(data.sensors.temp, data.sensors.hum, data.sensors.soil);
+                    checkSoil(data.sensors.soil);
+                }
+
+                if (!pollBlocked) {
+                    setValves(data.commands?.sw1 || false, data.commands?.sw2 || false);
+                }
+
+                if (data.schedule?.enabled && data.schedule?.time_val) {
+                    const [uh, um] = data.schedule.time_val.split(':').map(Number);
+                    const d = new Date();
+                    d.setUTCHours(uh, um, 0, 0);
+                    document.getElementById('sched-time').value     = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+                    document.getElementById('sched-duration').value = data.schedule.duration || 10;
+                    const valves = (data.schedule.valves || '1').split(',').map(Number);
+                    document.getElementById('sched-v1').checked = valves.includes(1);
+                    document.getElementById('sched-v2').checked = valves.includes(2);
+                }
+
+                setOnline(data.lastSeen, data.esp32Online);
+
+            } catch(e) {
+                // [2] Après 3 échecs consécutifs → hors-ligne
+                consecutiveFails++;
+                if (consecutiveFails >= 3) {
+                    setOnline(null, false);
+                }
+            }
+        }
+
+        // ── Capteurs ──
+        function setSensors(temp, hum, soil) {
+            if (temp != null) document.getElementById('temp-val').innerText = Math.round(temp) + '°C';
+            if (hum  != null) document.getElementById('hum-val').innerText  = Math.round(hum)  + '%';
+            if (soil != null) document.getElementById('soil-val').innerText = Math.round(soil) + '%';
+        }
+
+        // ── Vannes ──
+        function setValves(v1, v2) {
+            document.getElementById('v1-status').classList.toggle('active-water', !!v1);
+            document.getElementById('v2-status').classList.toggle('active-water', !!v2);
+            document.getElementById('sw1').checked = !!v1;
+            document.getElementById('sw2').checked = !!v2;
+        }
+
+        // ── Statut ESP32 — CORRIGÉ [1] ──
+        function setOnline(lastSeen, esp32Online) {
+            let online = false;
+
+            if (esp32Online === true) {
+                // Le serveur confirme explicitement que l'ESP32 est actif
+                online = true;
+            } else if (lastSeen != null) {
+                // [1] Normalisation : si lastSeen < 1e12 → c'est en secondes Unix
+                //     (ex: 1741480000) → convertir en ms JS (ex: 1741480000000)
+                //     Si lastSeen > 1e12 → déjà en ms JS, utiliser tel quel
+                const ts = (lastSeen < 1e12) ? lastSeen * 1000 : lastSeen;
+
+                // [1] Seuil 25s (était 12s) : 12 envois de marge sur 2s/envoi
+                online = (Date.now() - ts) < 25000;
+            }
+
+            // Éviter de redessiner si l'état n'a pas changé
+            if (online === lastOnlineState) return;
+            lastOnlineState = online;
+
+            const ind     = document.getElementById('status-indicator');
+            const txt     = document.getElementById('status-text');
+            const content = document.querySelector('.content');
+
+            if (online) {
+                txt.innerText = 'ESP32 ACTIVE';
+                ind.classList.add('online');
+                content.classList.remove('system-offline-lock');
+                soilAlertShown = false; // réinitialiser l'alerte sol au retour en ligne
+            } else {
+                txt.innerText = 'ESP32 INACTIVE';
+                ind.classList.remove('online');
+                content.classList.add('system-offline-lock');
+                document.getElementById('temp-val').innerText = '--°C';
+                document.getElementById('hum-val').innerText  = '--%';
+                document.getElementById('soil-val').innerText = '--%';
+            }
+        }
+
+        // ── Alerte sol bas — CORRIGÉE [3] ──
+        function checkSoil(soil) {
+            if (soil == null) return;
+
+            // [3] soilAlertShown empêche le confirm() de s'ouvrir toutes les 2.5s
+            if (soil < 20 && !forcedWatering && !soilAlertShown) {
+                soilAlertShown = true;
+                // setTimeout évite de bloquer la boucle de polling
+                setTimeout(() => {
+                    if (confirm('Soil moisture is low (' + soil + '%). Start emergency watering now?')) {
+                        forcedWatering = true;
+                        cmdValve(1, true);
+                        cmdValve(2, true);
+                        document.getElementById('status-msg').innerText = 'EMERGENCY WATERING IN PROGRESS...';
+                    } else {
+                        // Utilisateur refuse : ré-activer l'alerte quand sol > 30%
+                        soilAlertShown = false;
+                    }
+                }, 100);
+            }
+
+            // [3] Zone tampon 60% (était 100% → jamais atteint en conditions réelles)
+            if (forcedWatering && soil >= 60) {
+                forcedWatering = false;
+                soilAlertShown = false;
+                cmdValve(1, false);
+                cmdValve(2, false);
+                document.getElementById('status-msg').innerText = 'SOIL SATURATED — WATERING STOPPED';
+            }
+        }
+
+        // ── Commande vanne ──
+        async function cmdValve(valve, state) {
+            pollBlocked = true;
+            clearTimeout(window._pollBlockTimer);
+            window._pollBlockTimer = setTimeout(() => { pollBlocked = false; }, 3000);
+            try {
+                await fetch('/api/valve', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ valve, state })
+                });
+            } catch(e) {}
+        }
+
+        document.getElementById('sw1').addEventListener('change', function() {
+            document.getElementById('v1-status').classList.toggle('active-water', this.checked);
+            cmdValve(1, this.checked);
+        });
+        document.getElementById('sw2').addEventListener('change', function() {
+            document.getElementById('v2-status').classList.toggle('active-water', this.checked);
+            cmdValve(2, this.checked);
+        });
+
+        // ── Planning ──
+        async function syncSchedule() {
+            const localTime = document.getElementById('sched-time').value;
+            const duration  = document.getElementById('sched-duration').value;
+            const valves    = [];
+            if (document.getElementById('sched-v1').checked) valves.push(1);
+            if (document.getElementById('sched-v2').checked) valves.push(2);
+            if (!valves.length) return;
+            const [h, m] = localTime.split(':').map(Number);
+            const now    = new Date();
+            const local  = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+            const utcTime = String(local.getUTCHours()).padStart(2,'0') + ':' + String(local.getUTCMinutes()).padStart(2,'0');
+            try {
+                await fetch('/api/schedule', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ time: utcTime, duration: parseInt(duration), valves })
+                });
+            } catch(e) {}
+        }
+
+        ['sched-time','sched-duration','sched-v1','sched-v2'].forEach(id => {
+            document.getElementById(id).addEventListener('change', syncSchedule);
+        });
+
+        // ── Mode ──
+        document.querySelectorAll('input[name="m"]').forEach(r => {
+            r.addEventListener('change', () => {
+                const isInt = r.value === 'i';
+                localStorage.setItem('hs_mode', r.value);
+                document.getElementById('p-int').classList.toggle('disabled', !isInt);
+                document.getElementById('p-man').classList.toggle('disabled',  isInt);
+                if (isInt) syncSchedule();
+                else fetch('/api/schedule', { method: 'DELETE' }).catch(() => {});
+            });
+        });
+
+        // ── Horloge ──
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('current-time').innerText =
+                now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('current-date').innerText =
+                now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const mode = document.querySelector('input[name="m"]:checked').value;
+            if (mode === 'i') {
+                const t = document.getElementById('sched-time').value;
+                document.getElementById('status-msg').innerHTML =
+                    "NEXT CYCLE AT: <b style='color:var(--accent)'>" + t + "</b> <span style='color:#666;font-size:0.75rem'>(local)</span>";
+            } else if (!forcedWatering) {
+                document.getElementById('status-msg').innerText = 'MANUAL OVERRIDE ENABLED';
+            }
+        }
+    </script>
+</body>
+</html>
